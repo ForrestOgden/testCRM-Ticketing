@@ -120,6 +120,7 @@ export function Client360({ slug }: { slug: string }) {
   if (resource.error && !resource.data) return <div className="errorPanel">Unable to load client. {resource.error}</div>;
   const client = resource.data;
   if (!client) return null;
+  const currentClient = client;
 
   const openTickets = client.tickets.filter((ticket) => openStatuses.has(ticket.status));
   const activeAlerts = client.devices.reduce((sum, device) => sum + device.openAlertCount, 0);
@@ -154,11 +155,11 @@ export function Client360({ slug }: { slug: string }) {
     setSaving(true);
     setError(null);
     try {
-      await request(`/clients/${client.id}`, {
+      await request(`/clients/${currentClient.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           name: String(form.get("name") ?? "").trim(),
-          lifecycleStatus: String(form.get("lifecycleStatus") ?? client.lifecycleStatus),
+          lifecycleStatus: String(form.get("lifecycleStatus") ?? currentClient.lifecycleStatus),
           industry: String(form.get("industry") ?? "").trim() || null,
           employeeCount: form.get("employeeCount") ? Number(form.get("employeeCount")) : null,
           website: String(form.get("website") ?? "").trim() || null,
