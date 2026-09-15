@@ -91,6 +91,50 @@ function Test-Http([string]$Url) {
     }
 }
 
+function Test-DockerEngine {
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "SilentlyContinue"
+        & $script:DockerExe version --format "{{.Server.Version}}" 2>$null | Out-Null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
+function Ensure-DockerEngine {
+    if (Test-DockerEngine) {
+        Write-Step "Docker engine is running."
+        return
+    }
+
+    $candidates = @(
+        (Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"),
+        (Join-Path $env:LOCALAPPDATA "Docker\Docker Desktop.exe")
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+
+    $dockerDesktop = $candidates | Select-Object -First 1
+    if (-not $dockerDesktop) {
+        Fail "Docker is installed, but the Docker engine is not running and Docker Desktop could not be located. Start Docker Desktop manually, wait for it to report that the engine is running, then run LAUNCH.bat again."
+    }
+
+    Write-Step "Docker engine is not running. Starting Docker Desktop..."
+    Start-Process -FilePath $dockerDesktop | Out-Null
+
+    for ($attempt = 1; $attempt -le 60; $attempt++) {
+        if (Test-DockerEngine) {
+            Write-Step "Docker Desktop is ready."
+            return
+        }
+        if ($attempt -eq 1) { Write-Step "Waiting for Docker Desktop to initialize..." }
+        Start-Sleep -Seconds 2
+    }
+
+    Fail "Docker Desktop was started but the Docker engine did not become ready within 2 minutes. Open Docker Desktop, resolve any startup/WSL error it shows, then run LAUNCH.bat again."
+}
+
 Write-Host ""
 Write-Host "===============================================" -ForegroundColor DarkCyan
 Write-Host "        MSP CRM + Help Desk Launcher" -ForegroundColor White
@@ -115,10 +159,9 @@ if (-not $script:PnpmExe) {
     if ($LASTEXITCODE -ne 0) { Fail "Corepack could not start pnpm." }
 }
 
-$DockerExe = Get-CommandPath "docker"
-if (-not $DockerExe) { Fail "Docker Desktop is not installed or docker.exe is not in PATH." }
-& $DockerExe info *> $null
-if ($LASTEXITCODE -ne 0) { Fail "Docker is installed but the Docker engine is not running. Start Docker Desktop and run LAUNCH.bat again." }
+$script:DockerExe = Get-CommandPath "docker"
+if (-not $script:DockerExe) { Fail "Docker Desktop is not installed or docker.exe is not in PATH." }
+Ensure-DockerEngine
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {
     if (-not (Test-Path -LiteralPath $EnvExample)) { Fail ".env.example is missing." }
@@ -150,10 +193,10 @@ Stop-TrackedProcess "api"
 Stop-TrackedProcess "worker"
 
 Write-Step "Preparing local PostgreSQL..."
-$containerName = @(& $DockerExe ps -a --filter "name=^/$PostgresContainer$" --format "{{.Names}}") | Select-Object -First 1
+$containerName = @(& $script:DockerExe ps -a --filter "name=^/$PostgresContainer$" --format "{{.Names}}") | Select-Object -First 1
 $containerName = ([string]$containerName).Trim()
 if ($containerName -ne $PostgresContainer) {
-    & $DockerExe run --name $PostgresContainer `
+    & $script:DockerExe run --name $PostgresContainer `
         -e "POSTGRES_DB=msp_crm" `
         -e "POSTGRES_USER=msp_crm" `
         -e "POSTGRES_PASSWORD=$($env:POSTGRES_PASSWORD)" `
@@ -163,10 +206,10 @@ if ($containerName -ne $PostgresContainer) {
     if ($LASTEXITCODE -ne 0) { Fail "Could not create the local PostgreSQL Docker container. Port 5432 may already be in use." }
     Write-Step "Created PostgreSQL container."
 } else {
-    $running = @(& $DockerExe ps --filter "name=^/$PostgresContainer$" --filter "status=running" --format "{{.Names}}") | Select-Object -First 1
+    $running = @(& $script:DockerExe ps --filter "name=^/$PostgresContainer$" --filter "status=running" --format "{{.Names}}") | Select-Object -First 1
     $running = ([string]$running).Trim()
     if ($running -ne $PostgresContainer) {
-        & $DockerExe start $PostgresContainer *> $null
+        & $script:DockerExe start $PostgresContainer *> $null
         if ($LASTEXITCODE -ne 0) { Fail "Could not start the local PostgreSQL Docker container." }
         Write-Step "Started PostgreSQL container."
     }
@@ -174,7 +217,7 @@ if ($containerName -ne $PostgresContainer) {
 
 $databaseReady = $false
 for ($attempt = 1; $attempt -le 40; $attempt++) {
-    & $DockerExe exec $PostgresContainer pg_isready -U msp_crm -d msp_crm *> $null
+    & $script:DockerExe exec $PostgresContainer pg_isready -U msp_crm -d msp_crm *> $null
     if ($LASTEXITCODE -eq 0) {
         $databaseReady = $true
         break
