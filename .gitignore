@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+.next/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+packages/database/src/generated/
+apps/support-launcher/**/bin/
+apps/support-launcher/**/obj/
+backups/
+.run/

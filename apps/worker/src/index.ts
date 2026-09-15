@@ -1,12 +1,18 @@
-const pollIntervalMs = Number(process.env.WORKER_POLL_INTERVAL_MS ?? 5000);
+import { hydrateIntegrationEnvironment, startIntegrationEnvironmentRefresh } from "./integration-config.js";
+import { runWorker } from "./job-runner.js";
+import { errorMessage, log } from "./log.js";
 
-console.log(JSON.stringify({
-  level: "info",
-  service: "worker",
-  message: "MSP CRM worker started",
-  pollIntervalMs,
-}));
+async function start() {
+  try {
+    await hydrateIntegrationEnvironment();
+    startIntegrationEnvironmentRefresh();
+  } catch (error) {
+    log("warn", "Worker started without database-backed integration configuration", { error: errorMessage(error) });
+  }
+  await runWorker();
+}
 
-setInterval(() => {
-  // Phase 1: claim durable jobs and unpublished outbox events here.
-}, pollIntervalMs);
+void start().catch((error) => {
+  log("error", "Worker failed during startup", { error: errorMessage(error) });
+  process.exitCode = 1;
+});

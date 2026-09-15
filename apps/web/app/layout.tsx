@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
+import { AppShell } from "../components/AppShell";
+import { AuthProvider } from "../components/AuthProvider";
 import "./styles.css";
+import "./functional.css";
+import "./operations.css";
 
 export const metadata = {
   title: "MSP CRM",
@@ -9,7 +13,11 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
+      </body>
     </html>
   );
 }
