@@ -8,11 +8,11 @@ export function extractTicketNumber(subject: string | undefined) {
   return match?.[1] ? BigInt(match[1]) : undefined;
 }
 
-export function normalizeAddress(address: string | undefined) {
+export function normalizeAddress(address: string | null | undefined) {
   return address?.trim().toLowerCase() || undefined;
 }
 
-export function domainFromAddress(address: string | undefined) {
+export function domainFromAddress(address: string | null | undefined) {
   const normalized = normalizeAddress(address);
   if (!normalized) return undefined;
   const at = normalized.lastIndexOf("@");
