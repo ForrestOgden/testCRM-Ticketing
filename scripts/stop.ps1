@@ -44,7 +44,8 @@ Stop-TrackedProcess "worker"
 if ($StopDatabase) {
     $docker = Get-Command docker -ErrorAction SilentlyContinue
     if ($docker) {
-        $running = (& $docker.Source ps --filter "name=^/$PostgresContainer$" --filter "status=running" --format "{{.Names}}").Trim()
+        $running = @(& $docker.Source ps --filter "name=^/$PostgresContainer$" --filter "status=running" --format "{{.Names}}") | Select-Object -First 1
+        $running = ([string]$running).Trim()
         if ($running -eq $PostgresContainer) {
             Write-Step "Stopping PostgreSQL container..."
             & $docker.Source stop $PostgresContainer *> $null
