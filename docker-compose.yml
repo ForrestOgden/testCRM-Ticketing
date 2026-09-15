@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: msp_crm
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - backend
     healthcheck:
