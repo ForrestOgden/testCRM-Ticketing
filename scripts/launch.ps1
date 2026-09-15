@@ -6,6 +6,7 @@ $EnvFile = Join-Path $Root ".env"
 $EnvExample = Join-Path $Root ".env.example"
 $PostgresContainer = "msp-crm-postgres"
 $PostgresVolume = "msp_crm_postgres_data"
+$PostgresImage = "postgres:18-alpine"
 
 Set-Location -LiteralPath $Root
 New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
@@ -140,6 +141,33 @@ function Ensure-DockerEngine {
     Fail "Docker Desktop was started but the Docker engine did not become ready within 2 minutes. Open Docker Desktop, resolve any startup/WSL error it shows, then run LAUNCH.bat again."
 }
 
+function Test-DockerImage([string]$Image) {
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "SilentlyContinue"
+        & $script:DockerExe image inspect $Image *> $null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
+function Ensure-DockerImage([string]$Image) {
+    if (Test-DockerImage $Image) { return }
+
+    Write-Step "Downloading Docker image $Image (first launch only)..."
+    $process = Start-Process -FilePath $script:DockerExe -ArgumentList @("pull", $Image) -NoNewWindow -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        Fail "Docker could not download $Image. Check the internet connection and Docker Desktop, then run LAUNCH.bat again."
+    }
+    if (-not (Test-DockerImage $Image)) {
+        Fail "Docker reported a successful download, but $Image is still unavailable locally."
+    }
+    Write-Step "Docker image is ready."
+}
+
 Write-Host ""
 Write-Host "===============================================" -ForegroundColor DarkCyan
 Write-Host "        MSP CRM + Help Desk Launcher" -ForegroundColor White
@@ -167,6 +195,7 @@ if (-not $script:PnpmExe) {
 $script:DockerExe = Get-CommandPath "docker"
 if (-not $script:DockerExe) { Fail "Docker Desktop is not installed or docker.exe is not in PATH." }
 Ensure-DockerEngine
+Ensure-DockerImage $PostgresImage
 
 if (-not (Test-Path -LiteralPath $EnvFile)) {
     if (-not (Test-Path -LiteralPath $EnvExample)) { Fail ".env.example is missing." }
@@ -207,7 +236,7 @@ if ($containerName -ne $PostgresContainer) {
         -e "POSTGRES_PASSWORD=$($env:POSTGRES_PASSWORD)" `
         -p "5432:5432" `
         -v "$PostgresVolume`:/var/lib/postgresql/data" `
-        -d "postgres:18-alpine" *> $null
+        -d $PostgresImage *> $null
     if ($LASTEXITCODE -ne 0) { Fail "Could not create the local PostgreSQL Docker container. Port 5432 may already be in use." }
     Write-Step "Created PostgreSQL container."
 } else {
