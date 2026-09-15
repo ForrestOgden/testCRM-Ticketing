@@ -10,6 +10,7 @@ import { ClientsModule } from "./clients/clients.module";
 import { ContactsModule } from "./contacts/contacts.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { DevicesModule } from "./devices/devices.module";
+import { IntegrationsModule } from "./integrations/integrations.module";
 import { OpportunitiesModule } from "./opportunities/opportunities.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SearchModule } from "./search/search.module";
@@ -30,10 +31,11 @@ import { MeController } from "./me.controller";
     OpportunitiesModule,
     ActivitiesModule,
     ReportsModule,
-    SearchModule
+    SearchModule,
+    IntegrationsModule,
   ],
   controllers: [HealthController, MeController, DirectoryController],
-  providers: [{ provide: APP_INTERCEPTOR, useClass: SerializableInterceptor }]
+  providers: [{ provide: APP_INTERCEPTOR, useClass: SerializableInterceptor }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
