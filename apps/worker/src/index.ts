@@ -1,12 +1,7 @@
-const pollIntervalMs = Number(process.env.WORKER_POLL_INTERVAL_MS ?? 5000);
+import { runWorker } from "./job-runner.js";
+import { errorMessage, log } from "./log.js";
 
-console.log(JSON.stringify({
-  level: "info",
-  service: "worker",
-  message: "MSP CRM worker started",
-  pollIntervalMs,
-}));
-
-setInterval(() => {
-  // Phase 1: claim durable jobs and unpublished outbox events here.
-}, pollIntervalMs);
+void runWorker().catch((error) => {
+  log("error", "Worker failed during startup", { error: errorMessage(error) });
+  process.exitCode = 1;
+});
