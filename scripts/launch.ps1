@@ -7,6 +7,7 @@ $EnvExample = Join-Path $Root ".env.example"
 $PostgresContainer = "msp-crm-postgres"
 $PostgresVolume = "msp_crm_postgres_data"
 $PostgresImage = "postgres:18-alpine"
+$PostgresMountTarget = "/var/lib/postgresql"
 
 Set-Location -LiteralPath $Root
 New-Item -ItemType Directory -Force -Path $RunDir | Out-Null
@@ -25,9 +26,26 @@ function Get-CommandPath([string]$Name) {
     return $null
 }
 
-function Normalize-CommandOutput($Value) {
-    if ($null -eq $Value) { return "" }
-    return $Value.ToString().Trim()
+function Invoke-DockerText([string[]]$DockerArgs) {
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "SilentlyContinue"
+        $output = @(& $script:DockerExe @DockerArgs 2>$null)
+        $exitCode = $LASTEXITCODE
+        return [pscustomobject]@{
+            ExitCode = $exitCode
+            Text = (($output | ForEach-Object { $_.ToString() }) -join "`n").Trim()
+        }
+    } catch {
+        return [pscustomobject]@{ ExitCode = 1; Text = "" }
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
+function Invoke-DockerProcess([string[]]$DockerArgs, [string]$FailureMessage) {
+    $process = Start-Process -FilePath $script:DockerExe -ArgumentList $DockerArgs -NoNewWindow -Wait -PassThru
+    if ($process.ExitCode -ne 0) { Fail $FailureMessage }
 }
 
 function Set-DotEnvValue([string]$Key, [string]$Value) {
@@ -60,7 +78,7 @@ function Load-DotEnv {
 function Stop-TrackedProcess([string]$Name) {
     $pidFile = Join-Path $RunDir "$Name.pid"
     if (-not (Test-Path -LiteralPath $pidFile)) { return }
-    $savedPid = (Get-Content -LiteralPath $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $savedPid = Get-Content -LiteralPath $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($savedPid -and (Get-Process -Id ([int]$savedPid) -ErrorAction SilentlyContinue)) {
         Write-Step "Stopping previous $Name process tree..."
         & taskkill.exe /PID $savedPid /T /F *> $null
@@ -74,9 +92,7 @@ function Invoke-Pnpm([string[]]$PnpmArgs) {
     } else {
         & $script:CorepackExe pnpm @PnpmArgs
     }
-    if ($LASTEXITCODE -ne 0) {
-        Fail "pnpm command failed: pnpm $($PnpmArgs -join ' ')"
-    }
+    if ($LASTEXITCODE -ne 0) { Fail "pnpm command failed: pnpm $($PnpmArgs -join ' ')" }
 }
 
 function Start-AppWindow([string]$Name, [string]$ScriptName) {
@@ -98,16 +114,8 @@ function Test-Http([string]$Url) {
 }
 
 function Test-DockerEngine {
-    $previousPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "SilentlyContinue"
-        & $script:DockerExe version --format "{{.Server.Version}}" 2>$null | Out-Null
-        return $LASTEXITCODE -eq 0
-    } catch {
-        return $false
-    } finally {
-        $ErrorActionPreference = $previousPreference
-    }
+    $result = Invoke-DockerText @("version", "--format", "{{.Server.Version}}")
+    return $result.ExitCode -eq 0 -and $result.Text
 }
 
 function Ensure-DockerEngine {
@@ -123,49 +131,85 @@ function Ensure-DockerEngine {
 
     $dockerDesktop = $candidates | Select-Object -First 1
     if (-not $dockerDesktop) {
-        Fail "Docker is installed, but the Docker engine is not running and Docker Desktop could not be located. Start Docker Desktop manually, wait for it to report that the engine is running, then run LAUNCH.bat again."
+        Fail "Docker is installed, but the Docker engine is not running and Docker Desktop could not be located. Start Docker Desktop manually, then run LAUNCH.bat again."
     }
 
     Write-Step "Docker engine is not running. Starting Docker Desktop..."
     Start-Process -FilePath $dockerDesktop | Out-Null
-
+    Write-Step "Waiting for Docker Desktop to initialize..."
     for ($attempt = 1; $attempt -le 60; $attempt++) {
         if (Test-DockerEngine) {
             Write-Step "Docker Desktop is ready."
             return
         }
-        if ($attempt -eq 1) { Write-Step "Waiting for Docker Desktop to initialize..." }
         Start-Sleep -Seconds 2
     }
-
-    Fail "Docker Desktop was started but the Docker engine did not become ready within 2 minutes. Open Docker Desktop, resolve any startup/WSL error it shows, then run LAUNCH.bat again."
-}
-
-function Test-DockerImage([string]$Image) {
-    $previousPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "SilentlyContinue"
-        & $script:DockerExe image inspect $Image *> $null
-        return $LASTEXITCODE -eq 0
-    } catch {
-        return $false
-    } finally {
-        $ErrorActionPreference = $previousPreference
-    }
+    Fail "Docker Desktop was started but the Docker engine did not become ready within 2 minutes."
 }
 
 function Ensure-DockerImage([string]$Image) {
-    if (Test-DockerImage $Image) { return }
-
+    $inspect = Invoke-DockerText @("image", "inspect", $Image)
+    if ($inspect.ExitCode -eq 0) { return }
     Write-Step "Downloading Docker image $Image (first launch only)..."
-    $process = Start-Process -FilePath $script:DockerExe -ArgumentList @("pull", $Image) -NoNewWindow -Wait -PassThru
-    if ($process.ExitCode -ne 0) {
-        Fail "Docker could not download $Image. Check the internet connection and Docker Desktop, then run LAUNCH.bat again."
-    }
-    if (-not (Test-DockerImage $Image)) {
-        Fail "Docker reported a successful download, but $Image is still unavailable locally."
-    }
+    Invoke-DockerProcess @("pull", $Image) "Docker could not download $Image. Check your internet connection and Docker Desktop."
     Write-Step "Docker image is ready."
+}
+
+function Ensure-PostgresContainer {
+    Write-Step "Preparing local PostgreSQL..."
+    $containerQuery = Invoke-DockerText @("ps", "-a", "--filter", "name=^/$PostgresContainer$", "--format", "{{.Names}}")
+    $exists = $containerQuery.ExitCode -eq 0 -and (($containerQuery.Text -split "`n") -contains $PostgresContainer)
+
+    if ($exists) {
+        $mounts = Invoke-DockerText @("inspect", "--format", "{{range .Mounts}}{{println .Destination}}{{end}}", $PostgresContainer)
+        $mountTargets = @($mounts.Text -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        if ($mountTargets -notcontains $PostgresMountTarget) {
+            Write-Step "Found a PostgreSQL container using the pre-PostgreSQL-18 volume path. Recreating the container with the PostgreSQL 18 layout..."
+            Invoke-DockerProcess @("rm", "-f", $PostgresContainer) "Could not remove the outdated PostgreSQL container."
+            $exists = $false
+        }
+    }
+
+    if (-not $exists) {
+        Invoke-DockerProcess @(
+            "run", "--name", $PostgresContainer,
+            "-e", "POSTGRES_DB=msp_crm",
+            "-e", "POSTGRES_USER=msp_crm",
+            "-e", "POSTGRES_PASSWORD=$($env:POSTGRES_PASSWORD)",
+            "-p", "5432:5432",
+            "-v", "$PostgresVolume`:$PostgresMountTarget",
+            "-d", $PostgresImage
+        ) "Could not create the local PostgreSQL Docker container. Port 5432 may already be in use."
+        Write-Step "Created PostgreSQL container."
+    } else {
+        $running = Invoke-DockerText @("inspect", "--format", "{{.State.Running}}", $PostgresContainer)
+        if ($running.Text -ne "true") {
+            Invoke-DockerProcess @("start", $PostgresContainer) "Could not start the local PostgreSQL Docker container."
+            Write-Step "Started PostgreSQL container."
+        }
+    }
+
+    for ($attempt = 1; $attempt -le 60; $attempt++) {
+        $state = Invoke-DockerText @("inspect", "--format", "{{.State.Running}}", $PostgresContainer)
+        if ($state.Text -ne "true") {
+            $logs = Invoke-DockerText @("logs", "--tail", "80", $PostgresContainer)
+            if ($logs.Text) {
+                Write-Host ""
+                Write-Host "PostgreSQL container log:" -ForegroundColor Yellow
+                Write-Host $logs.Text -ForegroundColor DarkYellow
+                Write-Host ""
+            }
+            Fail "PostgreSQL container stopped during startup. The container log above contains the cause."
+        }
+
+        $ready = Invoke-DockerText @("exec", $PostgresContainer, "pg_isready", "-U", "msp_crm", "-d", "msp_crm")
+        if ($ready.ExitCode -eq 0) {
+            Write-Step "PostgreSQL is ready."
+            return
+        }
+        Start-Sleep -Seconds 1
+    }
+    Fail "PostgreSQL did not become ready within 60 seconds."
 }
 
 Write-Host ""
@@ -178,15 +222,11 @@ Write-Step "Checking prerequisites..."
 $NodeExe = Get-CommandPath "node"
 if (-not $NodeExe) { Fail "Node.js is not installed or is not in PATH. Install Node.js 24.11 or newer." }
 $nodeVersion = (& $NodeExe -p "process.versions.node").Trim()
-if ([version]$nodeVersion -lt [version]"24.11.0") {
-    Fail "Node.js $nodeVersion is installed, but this project requires Node.js 24.11 or newer."
-}
+if ([version]$nodeVersion -lt [version]"24.11.0") { Fail "Node.js $nodeVersion is installed, but this project requires Node.js 24.11 or newer." }
 
 $script:PnpmExe = Get-CommandPath "pnpm"
 $script:CorepackExe = Get-CommandPath "corepack"
-if (-not $script:PnpmExe -and -not $script:CorepackExe) {
-    Fail "pnpm is not installed and Corepack is unavailable. Install pnpm 10.34.5 or enable Corepack."
-}
+if (-not $script:PnpmExe -and -not $script:CorepackExe) { Fail "pnpm is not installed and Corepack is unavailable." }
 if (-not $script:PnpmExe) {
     & $script:CorepackExe pnpm --version *> $null
     if ($LASTEXITCODE -ne 0) { Fail "Corepack could not start pnpm." }
@@ -226,50 +266,14 @@ Stop-TrackedProcess "web"
 Stop-TrackedProcess "api"
 Stop-TrackedProcess "worker"
 
-Write-Step "Preparing local PostgreSQL..."
-$containerName = @(& $script:DockerExe ps -a --filter "name=^/$PostgresContainer$" --format "{{.Names}}") | Select-Object -First 1
-$containerName = Normalize-CommandOutput $containerName
-if ($containerName -ne $PostgresContainer) {
-    & $script:DockerExe run --name $PostgresContainer `
-        -e "POSTGRES_DB=msp_crm" `
-        -e "POSTGRES_USER=msp_crm" `
-        -e "POSTGRES_PASSWORD=$($env:POSTGRES_PASSWORD)" `
-        -p "5432:5432" `
-        -v "$PostgresVolume`:/var/lib/postgresql/data" `
-        -d $PostgresImage *> $null
-    if ($LASTEXITCODE -ne 0) { Fail "Could not create the local PostgreSQL Docker container. Port 5432 may already be in use." }
-    Write-Step "Created PostgreSQL container."
-} else {
-    $running = @(& $script:DockerExe ps --filter "name=^/$PostgresContainer$" --filter "status=running" --format "{{.Names}}") | Select-Object -First 1
-    $running = Normalize-CommandOutput $running
-    if ($running -ne $PostgresContainer) {
-        & $script:DockerExe start $PostgresContainer *> $null
-        if ($LASTEXITCODE -ne 0) { Fail "Could not start the local PostgreSQL Docker container." }
-        Write-Step "Started PostgreSQL container."
-    }
-}
-
-$databaseReady = $false
-for ($attempt = 1; $attempt -le 40; $attempt++) {
-    & $script:DockerExe exec $PostgresContainer pg_isready -U msp_crm -d msp_crm *> $null
-    if ($LASTEXITCODE -eq 0) {
-        $databaseReady = $true
-        break
-    }
-    Start-Sleep -Seconds 1
-}
-if (-not $databaseReady) { Fail "PostgreSQL did not become ready within 40 seconds." }
-Write-Step "PostgreSQL is ready."
+Ensure-PostgresContainer
 
 Write-Step "Installing/updating project dependencies..."
 Invoke-Pnpm @("install", "--no-frozen-lockfile")
-
 Write-Step "Generating Prisma client..."
 Invoke-Pnpm @("db:generate")
-
 Write-Step "Applying the current database schema..."
 Invoke-Pnpm @("--filter", "@msp-crm/database", "exec", "prisma", "db", "push")
-
 Write-Step "Applying idempotent seed data..."
 Invoke-Pnpm @("db:seed")
 
