@@ -39,7 +39,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.11.0
-          cache: pnpm
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm db:validate
