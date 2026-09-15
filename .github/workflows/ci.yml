@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, production-build, phase-1-ui-navigation]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: msp_crm
+          POSTGRES_USER: msp_crm
+          POSTGRES_PASSWORD: ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U msp_crm -d msp_crm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://msp_crm:ci-password@localhost:5432/msp_crm
+      AUTH_MODE: development
+      DEV_USER_EMAIL: admin@mspcrm.local
+      DEV_USER_OID: 00000000-0000-0000-0000-000000000001
+      NEXT_PUBLIC_AUTH_MODE: development
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.11.0
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:validate
+      - name: Validate schema against PostgreSQL
+        run: pnpm --filter @msp-crm/database exec prisma db push --skip-generate
+      - run: pnpm db:seed
+      - run: pnpm typecheck
+      - run: pnpm build
