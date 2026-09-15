@@ -14,6 +14,7 @@ import { IntegrationsModule } from "./integrations/integrations.module";
 import { OpportunitiesModule } from "./opportunities/opportunities.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SearchModule } from "./search/search.module";
+import { SupportModule } from "./support/support.module";
 import { TicketsModule } from "./tickets/tickets.module";
 import { DirectoryController } from "./directory.controller";
 import { HealthController } from "./health.controller";
@@ -33,6 +34,7 @@ import { MeController } from "./me.controller";
     ReportsModule,
     SearchModule,
     IntegrationsModule,
+    SupportModule,
   ],
   controllers: [HealthController, MeController, DirectoryController],
   providers: [{ provide: APP_INTERCEPTOR, useClass: SerializableInterceptor }],

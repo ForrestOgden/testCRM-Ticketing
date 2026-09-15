@@ -27,6 +27,12 @@ export class IntegrationsController {
     return this.integrations.upsert(provider, dto, actor);
   }
 
+  @Post(":provider/test")
+  @Permissions("integration.manage")
+  test(@Param("provider") provider: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.integrations.test(provider, actor);
+  }
+
   @Post(":provider/sync")
   @Permissions("integration.manage")
   sync(@Param("provider") provider: string, @CurrentUser() actor: AuthenticatedUser) {

@@ -5,6 +5,11 @@ export class ProvisionSupportEndpointDto {
   @IsOptional() @IsString() @MaxLength(40) appVersion?: string;
 }
 
+export class SupportHeartbeatDto {
+  @IsOptional() @IsString() @MaxLength(40) appVersion?: string;
+  @IsOptional() @IsObject() metadata?: Record<string, unknown>;
+}
+
 export class SupportRequestDto {
   @IsString() @MinLength(3) @MaxLength(240) subject!: string;
   @IsString() @MinLength(3) @MaxLength(100000) description!: string;
