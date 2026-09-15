@@ -6,7 +6,7 @@
   "scripts": {
     "generate": "prisma generate",
     "build": "pnpm generate && tsc -p tsconfig.json",
-    "typecheck": "pnpm generate && tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm generate && tsc -p tsconfig.json",
     "seed": "tsx prisma/seed.ts",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
