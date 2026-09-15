@@ -1,69 +1,114 @@
-const tickets = [
-  { id: "TKT-000812", client: "Adams Accounting", subject: "Outlook keeps asking for password", priority: "P2", status: "In Progress" },
-  { id: "TKT-000813", client: "Smith Dental", subject: "Front desk printer offline", priority: "P3", status: "New" },
-  { id: "TKT-000814", client: "Northside Law", subject: "OneDrive sync conflict", priority: "P3", status: "Waiting Customer" },
+const metrics = [
+  { label: "Open tickets", value: "14", note: "3 unassigned", tone: "blue" },
+  { label: "Critical", value: "1", note: "Needs attention", tone: "red" },
+  { label: "Waiting customer", value: "4", note: "2 over 48h", tone: "amber" },
+  { label: "Clients with alerts", value: "4", note: "7 active alerts", tone: "purple" },
+  { label: "Tasks due today", value: "6", note: "2 high priority", tone: "green" },
+  { label: "Pipeline", value: "$42.3k", note: "5 active opportunities", tone: "cyan" },
 ];
 
-export default function Home() {
+const tickets = [
+  { id: "TKT-000812", client: "Adams Accounting", subject: "Outlook keeps asking for password", priority: "P2", status: "In Progress", updated: "8m" },
+  { id: "TKT-000813", client: "Smith Dental", subject: "Front desk printer offline", priority: "P3", status: "New", updated: "21m" },
+  { id: "TKT-000814", client: "Northside Law", subject: "OneDrive sync conflict", priority: "P3", status: "Waiting Customer", updated: "1h" },
+  { id: "TKT-000815", client: "Ridgeview Dental", subject: "New employee onboarding", priority: "P4", status: "Assigned", updated: "2h" },
+];
+
+const alerts = [
+  { severity: "critical", title: "Server disk space below 5%", client: "Adams Accounting", device: "ADAMS-SRV01", age: "12m" },
+  { severity: "warning", title: "Backup job failed", client: "Smith Dental", device: "DENTAL-FS01", age: "28m" },
+  { severity: "info", title: "Endpoint offline", client: "Northside Law", device: "NLAW-LT07", age: "47m" },
+];
+
+export default function DashboardPage() {
   return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div className="brand">MSP<span>CRM</span></div>
-        <nav>
-          {['Dashboard','Clients','Contacts','Tickets','Devices','Pipeline','Tasks','Reports'].map((item) => (
-            <button className={item === 'Tickets' ? 'nav active' : 'nav'} key={item}>{item}</button>
-          ))}
-        </nav>
-        <div className="sidebarBottom">Settings</div>
-      </aside>
-
-      <section className="workspace">
-        <header className="topbar">
-          <div>
-            <div className="eyebrow">Help Desk</div>
-            <h1>Tickets</h1>
-          </div>
-          <div className="actions"><button className="ghost">⌘K Search</button><button className="primary">+ New ticket</button></div>
-        </header>
-
-        <div className="filters">
-          <button className="chip selected">My Open <b>7</b></button>
-          <button className="chip">Unassigned <b>3</b></button>
-          <button className="chip">Critical <b>1</b></button>
-          <button className="chip">Waiting Customer <b>4</b></button>
+    <div className="pageStack">
+      <section className="pageHeading">
+        <div>
+          <div className="eyebrow">Operations overview</div>
+          <h1>Good morning</h1>
+          <p>Everything that needs attention across clients, tickets, devices, and follow-ups.</p>
         </div>
-
-        <div className="ticketGrid">
-          <section className="queue panel">
-            <div className="panelHeader"><strong>Open queue</strong><span>14 tickets</span></div>
-            {tickets.map((ticket, i) => (
-              <article className={i === 0 ? 'ticket activeTicket' : 'ticket'} key={ticket.id}>
-                <div className="ticketMeta"><span>{ticket.id}</span><span>{ticket.priority}</span></div>
-                <strong>{ticket.subject}</strong>
-                <small>{ticket.client}</small>
-                <div className="ticketFooter"><span>{ticket.status}</span><span>{i === 0 ? '8m' : i === 1 ? '21m' : '1h'}</span></div>
-              </article>
-            ))}
-          </section>
-
-          <section className="conversation panel">
-            <div className="panelHeader"><div><strong>TKT-000812</strong><span className="muted"> · In Progress</span></div><button className="ghost small">•••</button></div>
-            <div className="ticketTitle"><h2>Outlook keeps asking for my password</h2><p>Adams Accounting · Jane Smith · DESKTOP-JSMITH</p></div>
-            <div className="message customer"><div className="avatar">JS</div><div><div className="messageHead"><strong>Jane Smith</strong><span>9:18 AM</span></div><p>Outlook keeps prompting me to sign in. I enter my password and it comes back a few minutes later.</p></div></div>
-            <div className="message tech"><div className="avatar">FO</div><div><div className="messageHead"><strong>Technician</strong><span>9:26 AM</span></div><p>I’m checking the device and Microsoft 365 sign-in state now. I’ll update you shortly.</p></div></div>
-            <div className="composer"><div className="composerTabs"><button className="tab activeTab">Reply</button><button className="tab">Internal note</button></div><textarea placeholder="Write a reply…"/><div className="composerFooter"><span>Attach · Template</span><button className="primary">Send reply</button></div></div>
-          </section>
-
-          <aside className="context panel">
-            <div className="panelHeader"><strong>Client context</strong></div>
-            <div className="contextSection"><label>CLIENT</label><h3>Adams Accounting</h3><p>Active client · Since 2022</p></div>
-            <div className="contextSection"><label>CONTACT</label><strong>Jane Smith</strong><p>Accounting Department<br/>jane@adams.example</p></div>
-            <div className="contextSection"><label>DEVICE</label><strong>DESKTOP-JSMITH</strong><div className="deviceStatus"><span className="dot"/>Online</div><dl><div><dt>OS</dt><dd>Windows 11 Pro</dd></div><div><dt>Model</dt><dd>Dell OptiPlex 7090</dd></div><div><dt>Last user</dt><dd>ADAMS\\jsmith</dd></div></dl></div>
-            <div className="alert"><strong>⚠ 1 current Datto alert</strong><span>Authentication monitor · 12m ago</span></div>
-            <div className="contextSection"><label>RELATED HISTORY</label><div className="history"><strong>TKT-000619</strong><span>Outlook authentication issue</span><small>Resolved 41 days ago</small></div></div>
-          </aside>
+        <div className="headingActions">
+          <button className="ghost">Today</button>
+          <button className="primary">+ New ticket</button>
         </div>
       </section>
-    </main>
+
+      <section className="metricGrid">
+        {metrics.map((metric) => (
+          <article className={`metricCard tone-${metric.tone}`} key={metric.label}>
+            <div className="metricAccent" />
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+            <small>{metric.note}</small>
+          </article>
+        ))}
+      </section>
+
+      <section className="dashboardGrid">
+        <article className="dashboardCard dashboardWide">
+          <div className="cardHeader">
+            <div>
+              <strong>Ticket queue</strong>
+              <span>Priority work across the help desk</span>
+            </div>
+            <a href="/tickets">View all →</a>
+          </div>
+          <div className="tableWrap">
+            <table className="dataTable">
+              <thead><tr><th>Ticket</th><th>Subject</th><th>Client</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead>
+              <tbody>
+                {tickets.map((ticket) => (
+                  <tr key={ticket.id}>
+                    <td className="ticketId">{ticket.id}</td>
+                    <td className="tableStrong">{ticket.subject}</td>
+                    <td>{ticket.client}</td>
+                    <td><span className={`priority priority-${ticket.priority.toLowerCase()}`}>{ticket.priority}</span></td>
+                    <td><span className="statusPill">{ticket.status}</span></td>
+                    <td className="mutedCell">{ticket.updated}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article className="dashboardCard">
+          <div className="cardHeader">
+            <div><strong>Live alerts</strong><span>Datto RMM context</span></div>
+            <span className="countBadge">7</span>
+          </div>
+          <div className="alertList">
+            {alerts.map((alert) => (
+              <div className="alertRow" key={alert.title}>
+                <div className={`alertIcon ${alert.severity}`}>{alert.severity === "critical" ? "!" : alert.severity === "warning" ? "▲" : "i"}</div>
+                <div className="alertCopy">
+                  <strong>{alert.title}</strong>
+                  <span>{alert.client} · {alert.device}</span>
+                </div>
+                <small>{alert.age}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="dashboardCard">
+          <div className="cardHeader"><div><strong>Today</strong><span>Tasks and follow-ups</span></div></div>
+          <div className="taskList">
+            <div className="taskRow"><span className="taskDot blue"/><div><strong>Call Adams Accounting</strong><span>9:00 AM · Client follow-up</span></div></div>
+            <div className="taskRow"><span className="taskDot amber"/><div><strong>Firewall quote follow-up</strong><span>10:30 AM · Opportunity</span></div></div>
+            <div className="taskRow"><span className="taskDot green"/><div><strong>Remote session — Smith Dental</strong><span>1:00 PM · Ticket</span></div></div>
+          </div>
+        </article>
+
+        <article className="dashboardCard">
+          <div className="cardHeader"><div><strong>Client health</strong><span>Operational signal</span></div></div>
+          <div className="healthScore"><strong>91</strong><span>/ 100</span></div>
+          <div className="healthBar"><span style={{ width: "91%" }} /></div>
+          <div className="healthLegend"><span><i className="legend good"/>24 healthy</span><span><i className="legend warn"/>3 watch</span><span><i className="legend bad"/>1 at risk</span></div>
+        </article>
+      </section>
+    </div>
   );
 }
