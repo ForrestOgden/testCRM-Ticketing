@@ -76,9 +76,14 @@ export class TicketsService {
     const existing = await this.database.prisma.ticket.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("Ticket not found.");
     const now = new Date();
-    const statusTimes = dto.status === TicketStatus.RESOLVED ? { resolvedAt: existing.resolvedAt ?? now, closedAt: null }
-      : dto.status === TicketStatus.CLOSED ? { resolvedAt: existing.resolvedAt ?? now, closedAt: now }
-      : dto.status && dto.status !== TicketStatus.RESOLVED && dto.status !== TicketStatus.CLOSED ? { resolvedAt: null, closedAt: null } : {};
+    let statusTimes: { resolvedAt?: Date | null; closedAt?: Date | null } = {};
+    if (dto.status === TicketStatus.RESOLVED) {
+      statusTimes = { resolvedAt: existing.resolvedAt ?? now, closedAt: null };
+    } else if (dto.status === TicketStatus.CLOSED) {
+      statusTimes = { resolvedAt: existing.resolvedAt ?? now, closedAt: now };
+    } else if (dto.status !== undefined) {
+      statusTimes = { resolvedAt: null, closedAt: null };
+    }
     const updated = await this.database.prisma.$transaction(async (tx) => {
       const record = await tx.ticket.update({ where: { id }, data: {
         ...(dto.subject !== undefined ? { subject: dto.subject.trim() } : {}), ...(dto.description !== undefined ? { description: dto.description.trim() } : {}),
