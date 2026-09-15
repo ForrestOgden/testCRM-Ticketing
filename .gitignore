@@ -13,3 +13,4 @@ packages/database/src/generated/
 apps/support-launcher/**/bin/
 apps/support-launcher/**/obj/
 backups/
+.run/
