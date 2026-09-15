@@ -51,22 +51,6 @@ function Load-DotEnv {
     }
 }
 
-function Test-TrackedProcess([string]$Name) {
-    $pidFile = Join-Path $RunDir "$Name.pid"
-    if (-not (Test-Path -LiteralPath $pidFile)) { return $false }
-    $savedPid = (Get-Content -LiteralPath $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
-    if (-not $savedPid) {
-        Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
-        return $false
-    }
-    $process = Get-Process -Id ([int]$savedPid) -ErrorAction SilentlyContinue
-    if (-not $process) {
-        Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
-        return $false
-    }
-    return $true
-}
-
 function Stop-TrackedProcess([string]$Name) {
     $pidFile = Join-Path $RunDir "$Name.pid"
     if (-not (Test-Path -LiteralPath $pidFile)) { return }
@@ -78,22 +62,21 @@ function Stop-TrackedProcess([string]$Name) {
     Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
 }
 
-function Invoke-Pnpm([string[]]$Arguments) {
+function Invoke-Pnpm([string[]]$PnpmArgs) {
     if ($script:PnpmExe) {
-        & $script:PnpmExe @Arguments
+        & $script:PnpmExe @PnpmArgs
     } else {
-        & $script:CorepackExe pnpm @Arguments
+        & $script:CorepackExe pnpm @PnpmArgs
     }
     if ($LASTEXITCODE -ne 0) {
-        Fail "pnpm command failed: pnpm $($Arguments -join ' ')"
+        Fail "pnpm command failed: pnpm $($PnpmArgs -join ' ')"
     }
 }
 
 function Start-AppWindow([string]$Name, [string]$ScriptName) {
     $title = "MSP CRM - $Name"
     $pnpmCommand = if ($script:PnpmExe) { "pnpm $ScriptName" } else { "corepack pnpm $ScriptName" }
-    $escapedRoot = $Root.Replace('"', '""')
-    $command = "title $title && cd /d `"$escapedRoot`" && $pnpmCommand"
+    $command = "title $title && cd /d `"$Root`" && $pnpmCommand"
     $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/k", $command -PassThru
     Set-Content -LiteralPath (Join-Path $RunDir "$Name.pid") -Value $process.Id -Encoding ASCII
     Write-Step "$Name started in a separate window (PID $($process.Id))."
@@ -118,8 +101,9 @@ Write-Step "Checking prerequisites..."
 $NodeExe = Get-CommandPath "node"
 if (-not $NodeExe) { Fail "Node.js is not installed or is not in PATH. Install Node.js 24.11 or newer." }
 $nodeVersion = (& $NodeExe -p "process.versions.node").Trim()
-$nodeMajor = [int]($nodeVersion.Split('.')[0])
-if ($nodeMajor -lt 24) { Fail "Node.js $nodeVersion is installed, but this project requires Node.js 24.11 or newer." }
+if ([version]$nodeVersion -lt [version]"24.11.0") {
+    Fail "Node.js $nodeVersion is installed, but this project requires Node.js 24.11 or newer."
+}
 
 $script:PnpmExe = Get-CommandPath "pnpm"
 $script:CorepackExe = Get-CommandPath "corepack"
@@ -166,7 +150,8 @@ Stop-TrackedProcess "api"
 Stop-TrackedProcess "worker"
 
 Write-Step "Preparing local PostgreSQL..."
-$containerName = (& $DockerExe ps -a --filter "name=^/$PostgresContainer$" --format "{{.Names}}").Trim()
+$containerName = @(& $DockerExe ps -a --filter "name=^/$PostgresContainer$" --format "{{.Names}}") | Select-Object -First 1
+$containerName = ([string]$containerName).Trim()
 if ($containerName -ne $PostgresContainer) {
     & $DockerExe run --name $PostgresContainer `
         -e "POSTGRES_DB=msp_crm" `
@@ -178,7 +163,8 @@ if ($containerName -ne $PostgresContainer) {
     if ($LASTEXITCODE -ne 0) { Fail "Could not create the local PostgreSQL Docker container. Port 5432 may already be in use." }
     Write-Step "Created PostgreSQL container."
 } else {
-    $running = (& $DockerExe ps --filter "name=^/$PostgresContainer$" --filter "status=running" --format "{{.Names}}").Trim()
+    $running = @(& $DockerExe ps --filter "name=^/$PostgresContainer$" --filter "status=running" --format "{{.Names}}") | Select-Object -First 1
+    $running = ([string]$running).Trim()
     if ($running -ne $PostgresContainer) {
         & $DockerExe start $PostgresContainer *> $null
         if ($LASTEXITCODE -ne 0) { Fail "Could not start the local PostgreSQL Docker container." }
