@@ -1,6 +1,27 @@
 # MSP CRM + Integrated Help Desk
 
-Phase 0 engineering foundation for a self-hosted MSP CRM with integrated ticketing and Datto RMM awareness.
+Self-hosted MSP CRM with integrated ticketing, Datto RMM awareness, Microsoft 365 support-email intake, and endpoint support requests.
+
+## Quick launch on Windows
+
+For local testing, double-click `LAUNCH.bat` in the repository root.
+
+The launcher will:
+
+- verify Node.js, pnpm/Corepack, and Docker Desktop
+- create `.env` from `.env.example` on first launch
+- generate a local encryption key for stored integration secrets when needed
+- start the local PostgreSQL Docker container
+- install/update project dependencies
+- generate the Prisma client
+- apply the current development database schema
+- apply idempotent seed data
+- start the API, worker, and web UI in separate command windows
+- open `http://localhost:3000` when the UI is ready
+
+Double-click `STOP.bat` to stop the app processes and the local PostgreSQL container.
+
+`LAUNCH.bat` is the supported local entry point and should be kept working as application changes are made.
 
 ## Product rules
 
@@ -18,13 +39,10 @@ Phase 0 engineering foundation for a self-hosted MSP CRM with integrated ticketi
 - `apps/web` — Next.js technician UI
 - `apps/api` — NestJS application API
 - `apps/worker` — background jobs, sync, notifications, webhook reconciliation
-- `apps/support-launcher` — future .NET Windows support launcher
+- `apps/support-launcher` — Windows support launcher
 - `packages/database` — Prisma schema and database package
 - `packages/contracts` — shared API/domain contracts
 - `packages/ui` — shared UI primitives
 - `docs` — ADRs, security baseline, domain model, build sequence
 - `infrastructure` — Docker/Caddy deployment assets
-
-## Foundation status
-
-This package intentionally stops before feature implementation. It establishes domain boundaries, persistence design, security constraints, integration boundaries, and the build order that Phase 1 should follow.
+- `scripts` — local launch/stop automation used by the root batch files
