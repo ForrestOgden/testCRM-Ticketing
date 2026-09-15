@@ -1,39 +1,112 @@
-const metrics = [
-  { label: "Open tickets", value: "14", note: "3 unassigned", tone: "blue" },
-  { label: "Critical", value: "1", note: "Needs attention", tone: "red" },
-  { label: "Waiting customer", value: "4", note: "2 over 48h", tone: "amber" },
-  { label: "Clients with alerts", value: "4", note: "7 active alerts", tone: "purple" },
-  { label: "Tasks due today", value: "6", note: "2 high priority", tone: "green" },
-  { label: "Pipeline", value: "$42.3k", note: "5 active opportunities", tone: "cyan" },
-];
+"use client";
 
-const tickets = [
-  { id: "TKT-000812", client: "Adams Accounting", subject: "Outlook keeps asking for password", priority: "P2", status: "In Progress", updated: "8m" },
-  { id: "TKT-000813", client: "Smith Dental", subject: "Front desk printer offline", priority: "P3", status: "New", updated: "21m" },
-  { id: "TKT-000814", client: "Northside Law", subject: "OneDrive sync conflict", priority: "P3", status: "Waiting Customer", updated: "1h" },
-  { id: "TKT-000815", client: "Ridgeview Dental", subject: "New employee onboarding", priority: "P4", status: "Assigned", updated: "2h" },
-];
+import Link from "next/link";
+import { useApiResource } from "../hooks/useApiResource";
 
-const alerts = [
-  { severity: "critical", title: "Server disk space below 5%", client: "Adams Accounting", device: "ADAMS-SRV01", age: "12m" },
-  { severity: "warning", title: "Backup job failed", client: "Smith Dental", device: "DENTAL-FS01", age: "28m" },
-  { severity: "info", title: "Endpoint offline", client: "Northside Law", device: "NLAW-LT07", age: "47m" },
-];
+type DashboardTicket = {
+  id: string;
+  displayNumber: string;
+  subject: string;
+  priority: string;
+  status: string;
+  updatedAt: string;
+  client: { name: string; slug: string };
+};
+
+type DashboardAlert = {
+  id: string;
+  message?: string | null;
+  alertType?: string | null;
+  priority?: string | null;
+  raisedAt?: string | null;
+  device: { id: string; hostname: string; client: { id: string; name: string; slug: string } };
+};
+
+type DashboardTask = {
+  id: string;
+  title: string;
+  kind: string;
+  dueAt?: string | null;
+  client?: { name: string; slug: string } | null;
+  ticket?: { subject: string; displayNumber: string } | null;
+};
+
+type DashboardData = {
+  metrics: {
+    openTickets: number;
+    unassigned: number;
+    critical: number;
+    waitingCustomer: number;
+    resolvedToday: number;
+    activeClients: number;
+    totalDevices: number;
+    onlineDevices: number;
+    endpointHealthPercent: number;
+    clientsWithAlerts: number;
+    tasksDueToday: number;
+    pipelineValueCents: string;
+    openOpportunities: number;
+    averageClientHealth: number;
+  };
+  clientHealth: { healthy: number; watch: number; atRisk: number };
+  recentTickets: DashboardTicket[];
+  liveAlerts: DashboardAlert[];
+  todayTasks: DashboardTask[];
+};
+
+function money(cents: string) {
+  const amount = Number(cents || 0) / 100;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(amount);
+}
+
+function age(date?: string | null) {
+  if (!date) return "—";
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+function status(value: string) {
+  return value.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function priority(value: string) {
+  return value.startsWith("P1") ? "P1" : value.startsWith("P2") ? "P2" : value.startsWith("P3") ? "P3" : "P4";
+}
 
 export default function DashboardPage() {
+  const { data, loading, error, refresh } = useApiResource<DashboardData>("/dashboard");
+
+  if (loading && !data) return <div className="loadingPanel">Loading live operations…</div>;
+  if (error && !data) return <div className="errorPanel">Unable to load dashboard. {error}<br/><button className="ghost" onClick={() => void refresh()}>Retry</button></div>;
+  if (!data) return null;
+
+  const metrics = [
+    { label: "Open tickets", value: String(data.metrics.openTickets), note: `${data.metrics.unassigned} unassigned`, tone: "blue" },
+    { label: "Critical", value: String(data.metrics.critical), note: "Needs attention", tone: "red" },
+    { label: "Waiting customer", value: String(data.metrics.waitingCustomer), note: "Awaiting response", tone: "amber" },
+    { label: "Clients with alerts", value: String(data.metrics.clientsWithAlerts), note: `${data.liveAlerts.length} recent alerts`, tone: "purple" },
+    { label: "Tasks due today", value: String(data.metrics.tasksDueToday), note: `${data.metrics.resolvedToday} tickets resolved`, tone: "green" },
+    { label: "Pipeline", value: money(data.metrics.pipelineValueCents), note: `${data.metrics.openOpportunities} active opportunities`, tone: "cyan" },
+  ];
+
   return (
     <div className="pageStack">
       <section className="pageHeading">
         <div>
           <div className="eyebrow">Operations overview</div>
-          <h1>Good morning</h1>
-          <p>Everything that needs attention across clients, tickets, devices, and follow-ups.</p>
+          <h1>Dashboard</h1>
+          <p>Live operational context across clients, tickets, endpoints, alerts, and follow-ups.</p>
         </div>
         <div className="headingActions">
-          <button className="ghost">Today</button>
-          <button className="primary">+ New ticket</button>
+          <button className="ghost" onClick={() => void refresh()}>Refresh</button>
+          <Link className="primary" href="/tickets?new=1">+ New ticket</Link>
         </div>
       </section>
+
+      {error ? <div className="inlineError">Showing the last loaded data. Refresh failed: {error}</div> : null}
 
       <section className="metricGrid">
         {metrics.map((metric) => (
@@ -49,26 +122,27 @@ export default function DashboardPage() {
       <section className="dashboardGrid">
         <article className="dashboardCard dashboardWide">
           <div className="cardHeader">
-            <div>
-              <strong>Ticket queue</strong>
-              <span>Priority work across the help desk</span>
-            </div>
-            <a href="/tickets">View all →</a>
+            <div><strong>Ticket queue</strong><span>Current priority work across the help desk</span></div>
+            <Link href="/tickets">View all →</Link>
           </div>
           <div className="tableWrap">
             <table className="dataTable">
               <thead><tr><th>Ticket</th><th>Subject</th><th>Client</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead>
               <tbody>
-                {tickets.map((ticket) => (
-                  <tr key={ticket.id}>
-                    <td className="ticketId">{ticket.id}</td>
-                    <td className="tableStrong">{ticket.subject}</td>
-                    <td>{ticket.client}</td>
-                    <td><span className={`priority priority-${ticket.priority.toLowerCase()}`}>{ticket.priority}</span></td>
-                    <td><span className="statusPill">{ticket.status}</span></td>
-                    <td className="mutedCell">{ticket.updated}</td>
-                  </tr>
-                ))}
+                {data.recentTickets.map((ticket) => {
+                  const shortPriority = priority(ticket.priority);
+                  return (
+                    <tr key={ticket.id}>
+                      <td className="ticketId"><Link href={`/tickets?id=${ticket.id}`}>{ticket.displayNumber}</Link></td>
+                      <td className="tableStrong">{ticket.subject}</td>
+                      <td><Link href={`/clients/${ticket.client.slug}`}>{ticket.client.name}</Link></td>
+                      <td><span className={`priority priority-${shortPriority.toLowerCase()}`}>{shortPriority}</span></td>
+                      <td><span className="statusPill">{status(ticket.status)}</span></td>
+                      <td className="mutedCell">{age(ticket.updatedAt)}</td>
+                    </tr>
+                  );
+                })}
+                {!data.recentTickets.length ? <tr><td colSpan={6}>No open tickets.</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -77,36 +151,55 @@ export default function DashboardPage() {
         <article className="dashboardCard">
           <div className="cardHeader">
             <div><strong>Live alerts</strong><span>Datto RMM context</span></div>
-            <span className="countBadge">7</span>
+            <span className="countBadge">{data.liveAlerts.length}</span>
           </div>
           <div className="alertList">
-            {alerts.map((alert) => (
-              <div className="alertRow" key={alert.title}>
-                <div className={`alertIcon ${alert.severity}`}>{alert.severity === "critical" ? "!" : alert.severity === "warning" ? "▲" : "i"}</div>
-                <div className="alertCopy">
-                  <strong>{alert.title}</strong>
-                  <span>{alert.client} · {alert.device}</span>
+            {data.liveAlerts.map((alert) => {
+              const severe = /critical|high/i.test(alert.priority ?? "") ? "critical" : /warning|medium/i.test(alert.priority ?? "") ? "warning" : "info";
+              return (
+                <Link className="alertRow" href={`/devices?id=${alert.device.id}`} key={alert.id}>
+                  <div className={`alertIcon ${severe}`}>{severe === "critical" ? "!" : severe === "warning" ? "▲" : "i"}</div>
+                  <div className="alertCopy">
+                    <strong>{alert.message || alert.alertType || "RMM alert"}</strong>
+                    <span>{alert.device.client.name} · {alert.device.hostname}</span>
+                  </div>
+                  <small>{age(alert.raisedAt)}</small>
+                </Link>
+              );
+            })}
+            {!data.liveAlerts.length ? <div className="emptyPanel">No active RMM alerts.</div> : null}
+          </div>
+        </article>
+
+        <article className="dashboardCard">
+          <div className="cardHeader"><div><strong>Today</strong><span>Tasks and follow-ups</span></div><Link href="/tasks">View all →</Link></div>
+          <div className="taskList">
+            {data.todayTasks.map((task, index) => (
+              <div className="taskRow" key={task.id}>
+                <span className={`taskDot ${index % 3 === 0 ? "blue" : index % 3 === 1 ? "amber" : "green"}`}/>
+                <div>
+                  <strong>{task.title}</strong>
+                  <span>{task.dueAt ? new Date(task.dueAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Today"}{task.client ? ` · ${task.client.name}` : task.ticket ? ` · ${task.ticket.displayNumber}` : ""}</span>
                 </div>
-                <small>{alert.age}</small>
               </div>
             ))}
+            {!data.todayTasks.length ? <div className="emptyPanel">No tasks due today.</div> : null}
           </div>
         </article>
 
         <article className="dashboardCard">
-          <div className="cardHeader"><div><strong>Today</strong><span>Tasks and follow-ups</span></div></div>
-          <div className="taskList">
-            <div className="taskRow"><span className="taskDot blue"/><div><strong>Call Adams Accounting</strong><span>9:00 AM · Client follow-up</span></div></div>
-            <div className="taskRow"><span className="taskDot amber"/><div><strong>Firewall quote follow-up</strong><span>10:30 AM · Opportunity</span></div></div>
-            <div className="taskRow"><span className="taskDot green"/><div><strong>Remote session — Smith Dental</strong><span>1:00 PM · Ticket</span></div></div>
+          <div className="cardHeader"><div><strong>Client health</strong><span>Relationship and operational signal</span></div></div>
+          <div className="healthScore"><strong>{data.metrics.averageClientHealth}</strong><span>/ 100</span></div>
+          <div className="healthBar"><span style={{ width: `${Math.max(0, Math.min(100, data.metrics.averageClientHealth))}%` }} /></div>
+          <div className="healthLegend">
+            <span><i className="legend good"/>{data.clientHealth.healthy} healthy</span>
+            <span><i className="legend warn"/>{data.clientHealth.watch} watch</span>
+            <span><i className="legend bad"/>{data.clientHealth.atRisk} at risk</span>
           </div>
-        </article>
-
-        <article className="dashboardCard">
-          <div className="cardHeader"><div><strong>Client health</strong><span>Operational signal</span></div></div>
-          <div className="healthScore"><strong>91</strong><span>/ 100</span></div>
-          <div className="healthBar"><span style={{ width: "91%" }} /></div>
-          <div className="healthLegend"><span><i className="legend good"/>24 healthy</span><span><i className="legend warn"/>3 watch</span><span><i className="legend bad"/>1 at risk</span></div>
+          <div className="detailMeta" style={{ padding: "0 16px 16px" }}>
+            <span>{data.metrics.onlineDevices}/{data.metrics.totalDevices} endpoints online</span>
+            <span>{data.metrics.endpointHealthPercent}% endpoint health</span>
+          </div>
         </article>
       </section>
     </div>
