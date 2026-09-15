@@ -24,6 +24,11 @@ function Get-CommandPath([string]$Name) {
     return $null
 }
 
+function Normalize-CommandOutput($Value) {
+    if ($null -eq $Value) { return "" }
+    return $Value.ToString().Trim()
+}
+
 function Set-DotEnvValue([string]$Key, [string]$Value) {
     $lines = @()
     if (Test-Path -LiteralPath $EnvFile) { $lines = @(Get-Content -LiteralPath $EnvFile) }
@@ -194,7 +199,7 @@ Stop-TrackedProcess "worker"
 
 Write-Step "Preparing local PostgreSQL..."
 $containerName = @(& $script:DockerExe ps -a --filter "name=^/$PostgresContainer$" --format "{{.Names}}") | Select-Object -First 1
-$containerName = ([string]$containerName).Trim()
+$containerName = Normalize-CommandOutput $containerName
 if ($containerName -ne $PostgresContainer) {
     & $script:DockerExe run --name $PostgresContainer `
         -e "POSTGRES_DB=msp_crm" `
@@ -207,7 +212,7 @@ if ($containerName -ne $PostgresContainer) {
     Write-Step "Created PostgreSQL container."
 } else {
     $running = @(& $script:DockerExe ps --filter "name=^/$PostgresContainer$" --filter "status=running" --format "{{.Names}}") | Select-Object -First 1
-    $running = ([string]$running).Trim()
+    $running = Normalize-CommandOutput $running
     if ($running -ne $PostgresContainer) {
         & $script:DockerExe start $PostgresContainer *> $null
         if ($LASTEXITCODE -ne 0) { Fail "Could not start the local PostgreSQL Docker container." }
