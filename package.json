@@ -1,0 +1,17 @@
+{
+  "name": "msp-crm",
+  "private": true,
+  "packageManager": "pnpm@10",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev:web": "pnpm --filter @msp-crm/web dev",
+    "dev:api": "pnpm --filter @msp-crm/api start:dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @msp-crm/database prisma generate",
+    "db:migrate": "pnpm --filter @msp-crm/database prisma migrate dev"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@msp-crm/database",
+  "private": true,
+  "scripts": {
+    "prisma": "prisma",
+    "generate": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "7.10.0"
+  },
+  "devDependencies": {
+    "prisma": "7.10.0"
+  }
+}
