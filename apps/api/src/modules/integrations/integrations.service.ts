@@ -18,9 +18,12 @@ type JsonObject = Record<string, unknown>;
 const configKeys: Record<ExternalProvider, readonly string[]> = {
   [ExternalProvider.DATTO_RMM]: [
     "apiUrl", "webUrl", "autoCreateClients", "alertTicketingEnabled",
-    "mapDattoPriority", "alertTicketPriority", "autoResolveAlertTickets",
+    "mapDattoPriority", "alertTicketPriority", "autoResolveAlertTickets", "defaultQueueId",
   ],
-  [ExternalProvider.MICROSOFT_GRAPH]: ["tenantId", "clientId", "mailbox", "fallbackClientId", "webhookUrl"],
+  [ExternalProvider.MICROSOFT_GRAPH]: [
+    "tenantId", "clientId", "mailbox", "fallbackClientId", "webhookUrl", "defaultQueueId",
+    "acknowledgementEnabled", "ackSubject", "ackBody",
+  ],
   [ExternalProvider.AUTOTASK]: [],
 };
 
@@ -157,6 +160,7 @@ export class IntegrationsService {
     const name = dto.name?.trim() || defaultName(provider);
     const previous = await this.database.prisma.integrationConnection.findUnique({ where: { provider_name: { provider, name } } });
     const mergedConfig = { ...object(previous?.config), ...cleanConfig(provider, dto.config) };
+    await this.validateReferences(provider, mergedConfig);
     const requestedSecrets = cleanSecrets(provider, dto.secrets);
     const clearKeys = (dto.clearSecretKeys ?? []).filter((key) => secretKeys[provider].includes(key));
     const secretMutationRequested = Object.keys(requestedSecrets).length > 0 || clearKeys.length > 0 || (!previous && provider === ExternalProvider.MICROSOFT_GRAPH);
@@ -252,6 +256,24 @@ export class IntegrationsService {
       secrets = decryptSecretMap(connection.encryptedSecret);
     }
     return { connection, config: object(connection.config), secrets };
+  }
+
+  private async validateReferences(provider: ExternalProvider, config: JsonObject) {
+    const queueId = typeof config.defaultQueueId === "string" ? config.defaultQueueId.trim() : "";
+    if (queueId) {
+      const queue = await this.database.prisma.ticketQueue.findFirst({ where: { id: queueId, isActive: true }, select: { id: true } });
+      if (!queue) throw new BadRequestException("The selected default ticket queue does not exist or is inactive.");
+    }
+
+    if (provider === ExternalProvider.MICROSOFT_GRAPH) {
+      const fallbackClientId = typeof config.fallbackClientId === "string" ? config.fallbackClientId.trim() : "";
+      if (fallbackClientId) {
+        const client = await this.database.prisma.client.findFirst({ where: { id: fallbackClientId, archivedAt: null }, select: { id: true } });
+        if (!client) throw new BadRequestException("The selected unmatched-sender fallback client does not exist or is archived.");
+      }
+      if (typeof config.ackSubject === "string" && config.ackSubject.length > 240) throw new BadRequestException("Acknowledgement subject must be 240 characters or fewer.");
+      if (typeof config.ackBody === "string" && config.ackBody.length > 10000) throw new BadRequestException("Acknowledgement body must be 10,000 characters or fewer.");
+    }
   }
 
   private async testDatto(config: JsonObject, secrets: Record<string, string>) {
