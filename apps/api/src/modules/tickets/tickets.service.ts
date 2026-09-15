@@ -78,7 +78,7 @@ export class TicketsService {
     const now = new Date();
     const statusTimes = dto.status === TicketStatus.RESOLVED ? { resolvedAt: existing.resolvedAt ?? now, closedAt: null }
       : dto.status === TicketStatus.CLOSED ? { resolvedAt: existing.resolvedAt ?? now, closedAt: now }
-      : dto.status && ![TicketStatus.RESOLVED, TicketStatus.CLOSED].includes(dto.status) ? { resolvedAt: null, closedAt: null } : {};
+      : dto.status && dto.status !== TicketStatus.RESOLVED && dto.status !== TicketStatus.CLOSED ? { resolvedAt: null, closedAt: null } : {};
     const updated = await this.database.prisma.$transaction(async (tx) => {
       const record = await tx.ticket.update({ where: { id }, data: {
         ...(dto.subject !== undefined ? { subject: dto.subject.trim() } : {}), ...(dto.description !== undefined ? { description: dto.description.trim() } : {}),
