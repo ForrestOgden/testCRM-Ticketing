@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { useAuth, userInitials } from "./AuthProvider";
 
 const navigation = [
   { href: "/", label: "Dashboard", icon: "▦" },
-  { href: "/tickets", label: "Tickets", icon: "▤", badge: "14" },
+  { href: "/tickets", label: "Tickets", icon: "▤" },
   { href: "/clients", label: "Clients", icon: "◉" },
   { href: "/contacts", label: "Contacts", icon: "◎" },
   { href: "/devices", label: "Devices", icon: "▣" },
@@ -22,6 +23,15 @@ function isActive(pathname: string, href: string) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const [query, setQuery] = useState("");
+
+  function search(event: FormEvent) {
+    event.preventDefault();
+    const value = query.trim();
+    if (value) router.push(`/search?q=${encodeURIComponent(value)}`);
+  }
 
   return (
     <div className="shell">
@@ -43,7 +53,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <span className="navIcon">{item.icon}</span>
               <span>{item.label}</span>
-              {item.badge ? <span className="navBadge">{item.badge}</span> : null}
             </Link>
           ))}
         </nav>
@@ -53,28 +62,33 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="navIcon">⚙</span>
             <span>Settings</span>
           </Link>
-          <div className="signedInUser">
-            <div className="userAvatar">FO</div>
+          <button className="signedInUser userButton" type="button" onClick={() => void logout()} title="Sign out">
+            <div className="userAvatar">{userInitials(user)}</div>
             <div>
-              <strong>Forrest</strong>
-              <span>Technician</span>
+              <strong>{user?.displayName ?? "Signed in"}</strong>
+              <span>{user?.email ?? ""}</span>
             </div>
-          </div>
+          </button>
         </div>
       </aside>
 
       <div className="appColumn">
         <header className="globalBar">
-          <div className="globalSearch">
+          <form className="globalSearch" onSubmit={search}>
             <span>⌕</span>
-            <span className="searchPlaceholder">Search clients, tickets, devices, contacts...</span>
-            <kbd>Ctrl K</kbd>
-          </div>
+            <input
+              aria-label="Global search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search clients, tickets, devices, contacts..."
+            />
+            <kbd>Enter</kbd>
+          </form>
           <div className="globalActions">
-            <button className="iconButton" aria-label="Notifications">●</button>
+            <Link className="iconButton" aria-label="Settings" href="/settings">⚙</Link>
             <div className="profilePill">
-              <div className="userAvatar smallAvatar">FO</div>
-              <span>Forrest</span>
+              <div className="userAvatar smallAvatar">{userInitials(user)}</div>
+              <span>{user?.displayName ?? "User"}</span>
             </div>
           </div>
         </header>
