@@ -3,6 +3,7 @@ import { AppShell } from "../components/AppShell";
 import { AuthProvider } from "../components/AuthProvider";
 import "./styles.css";
 import "./functional.css";
+import "./operations.css";
 
 export const metadata = {
   title: "MSP CRM",
