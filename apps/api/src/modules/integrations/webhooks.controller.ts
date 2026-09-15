@@ -210,6 +210,7 @@ export class WebhooksController {
     const siteName = stringValue(payload.siteName) ?? stringValue(payload.site_name);
     const dattoPriority = bool(config.mapDattoPriority, true) ? sourcePriority : undefined;
     const ticketPriority = priority(dattoPriority, config.alertTicketPriority);
+    const queueId = typeof config.defaultQueueId === "string" && config.defaultQueueId.trim() ? config.defaultQueueId.trim() : undefined;
     const description = [
       message,
       "",
@@ -225,6 +226,7 @@ export class WebhooksController {
         data: {
           clientId: device.clientId,
           deviceId: device.id,
+          queueId,
           subject: `[Datto] ${device.hostname} · ${alertType}`.slice(0, 300),
           description,
           source: "datto-webhook",
