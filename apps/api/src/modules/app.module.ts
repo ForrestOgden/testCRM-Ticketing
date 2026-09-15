@@ -1,8 +1,8 @@
 import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
-import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { APP_INTERCEPTOR } from "@nestjs/core";
 import { AuthModule } from "../auth/auth.module";
 import { DatabaseModule } from "../common/database.module";
+import { rateLimitMiddleware } from "../common/rate-limit.middleware";
 import { requestContextMiddleware } from "../common/request-context.middleware";
 import { SerializableInterceptor } from "../common/serializable.interceptor";
 import { ActivitiesModule } from "./activities/activities.module";
@@ -21,10 +21,6 @@ import { MeController } from "./me.controller";
 @Module({
   imports: [
     DatabaseModule,
-    ThrottlerModule.forRoot([{
-      ttl: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60000),
-      limit: Number(process.env.RATE_LIMIT_REQUESTS ?? 240)
-    }]),
     AuthModule,
     DashboardModule,
     ClientsModule,
@@ -37,13 +33,10 @@ import { MeController } from "./me.controller";
     SearchModule
   ],
   controllers: [HealthController, MeController, DirectoryController],
-  providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-    { provide: APP_INTERCEPTOR, useClass: SerializableInterceptor }
-  ]
+  providers: [{ provide: APP_INTERCEPTOR, useClass: SerializableInterceptor }]
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(requestContextMiddleware).forRoutes("*");
+    consumer.apply(requestContextMiddleware, rateLimitMiddleware).forRoutes("*");
   }
 }

@@ -43,7 +43,7 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm db:validate
       - name: Validate schema against PostgreSQL
-        run: pnpm --filter @msp-crm/database exec prisma db push --skip-generate
+        run: pnpm --filter @msp-crm/database exec prisma db push
       - run: pnpm db:seed
       - run: pnpm typecheck
       - run: pnpm build

@@ -5,6 +5,9 @@
   "engines": {
     "node": ">=24.11.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@prisma/engines", "esbuild", "prisma"]
+  },
   "scripts": {
     "dev:web": "pnpm --filter @msp-crm/web dev",
     "dev:api": "pnpm --filter @msp-crm/api start:dev",
