@@ -47,3 +47,34 @@ jobs:
       - run: pnpm db:seed
       - run: pnpm typecheck
       - run: pnpm build
+
+  launcher-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate one-click launcher files
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          foreach ($required in @("LAUNCH.bat", "STOP.bat", "scripts/launch.ps1", "scripts/stop.ps1")) {
+            if (-not (Test-Path -LiteralPath $required)) {
+              throw "Required local launcher file is missing: $required"
+            }
+          }
+
+          foreach ($script in @("scripts/launch.ps1", "scripts/stop.ps1")) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $script),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.Message }
+              throw "PowerShell syntax validation failed for $script"
+            }
+          }
+
+          Write-Host "Windows launcher files are present and syntactically valid."
