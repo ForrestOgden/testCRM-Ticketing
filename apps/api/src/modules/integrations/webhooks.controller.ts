@@ -172,7 +172,7 @@ export class WebhooksController {
       });
 
       let ticketId = existingAlert?.ticketId ?? alert.ticketId ?? null;
-      const config = runtime.config;
+      const config = runtime.config as Record<string, unknown>;
       if (!resolved && bool(config.alertTicketingEnabled, true) && !ticketId) {
         ticketId = await this.createAlertTicket(mapping.deviceId, alertUid, payload, sourcePriority, config);
         await this.database.prisma.rmmAlert.update({ where: { id: alert.id }, data: { ticketId } });
@@ -180,7 +180,7 @@ export class WebhooksController {
 
       if (resolved && ticketId && bool(config.autoResolveAlertTickets, true)) {
         const ticket = await this.database.prisma.ticket.findUnique({ where: { id: ticketId }, select: { status: true } });
-        if (ticket && ![TicketStatus.RESOLVED, TicketStatus.CLOSED].includes(ticket.status)) {
+        if (ticket && ticket.status !== TicketStatus.RESOLVED && ticket.status !== TicketStatus.CLOSED) {
           await this.database.prisma.$transaction(async (tx) => {
             await tx.ticket.update({ where: { id: ticketId! }, data: { status: TicketStatus.RESOLVED, resolvedAt: now, closedAt: null } });
             await tx.ticketEntry.create({ data: { ticketId: ticketId!, kind: TicketEntryKind.SYSTEM_EVENT, bodyText: `Datto RMM alert ${alertUid} was resolved.` } });
